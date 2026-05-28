@@ -214,6 +214,14 @@ public class MainActivity extends Activity {
         UiKit.pad(meta, 10, 4, 10, 0);
         card.addView(meta);
 
+        TextView storage = UiKit.text(this, "存储：待缓存",
+                10,
+                UiKit.TEXT_TERTIARY,
+                Typeface.NORMAL);
+        storage.setSingleLine(true);
+        UiKit.pad(storage, 10, 3, 10, 0);
+        card.addView(storage);
+
         TextView badge = UiKit.text(this, "准备加载", 11, UiKit.ACCENT, Typeface.BOLD);
         badge.setGravity(Gravity.CENTER_VERTICAL);
         badge.setBackground(UiKit.rounded(0xFFFFEEF0, 99, this));
@@ -238,6 +246,7 @@ public class MainActivity extends Activity {
                 }
                 imageView.setImageBitmap(result.bitmap);
                 meta.setText(post.dateLabel + " · " + UiKit.readableBytes(result.sizeBytes) + " · " + post.location);
+                storage.setText("存储：" + shortCachePath(result.cacheFile));
                 badge.setText(result.source.label);
             }
 
@@ -248,10 +257,19 @@ public class MainActivity extends Activity {
                 }
                 badge.setText("加载失败");
                 meta.setText(post.dateLabel + " · " + throwable.getMessage());
+                storage.setText("存储：待缓存");
                 Toast.makeText(MainActivity.this, "图片加载失败：" + post.title, Toast.LENGTH_SHORT).show();
             }
         });
 
         return card;
+    }
+
+    private String shortCachePath(java.io.File cacheFile) {
+        java.io.File parent = cacheFile.getParentFile();
+        if (parent == null) {
+            return cacheFile.getName();
+        }
+        return parent.getName() + "/" + cacheFile.getName();
     }
 }

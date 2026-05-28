@@ -1,9 +1,9 @@
 package com.bytecamp.experiencefeed;
 
 enum CacheSource {
-    MEMORY("内存缓存"),
-    DISK("磁盘缓存"),
-    NETWORK("网络下载");
+    MEMORY("当前内存缓存"),
+    DISK("本地磁盘缓存"),
+    NETWORK("首次网络下载");
 
     final String label;
 

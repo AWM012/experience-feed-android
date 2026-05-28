@@ -102,6 +102,7 @@ public class DetailActivity extends Activity {
         panel.addView(description, descParams);
 
         TextView source = addInfoRow(panel, "加载来源", "准备加载");
+        TextView cacheNote = addInfoRow(panel, "缓存说明", "等待加载结果");
         TextView date = addInfoRow(panel, "图片日期", post.dateLabel);
         TextView location = addInfoRow(panel, "拍摄位置", post.location);
         TextView size = addInfoRow(panel, "图片大小", "待加载");
@@ -125,12 +126,13 @@ public class DetailActivity extends Activity {
             imageView.setImageDrawable(null);
             imageView.setBackgroundColor(UiKit.PLACEHOLDER);
             source.setText("重新获取中");
+            cacheNote.setText("已清除当前图片缓存，重新请求网络");
             size.setText("待加载");
-            load(post, imageView, source, size, path);
+            load(post, imageView, source, cacheNote, size, path);
         });
 
         setContentView(scrollView);
-        load(post, imageView, source, size, path);
+        load(post, imageView, source, cacheNote, size, path);
     }
 
     @Override
@@ -228,6 +230,7 @@ public class DetailActivity extends Activity {
             ImagePost post,
             ImageView imageView,
             TextView source,
+            TextView cacheNote,
             TextView size,
             TextView path
     ) {
@@ -239,6 +242,7 @@ public class DetailActivity extends Activity {
                 }
                 imageView.setImageBitmap(result.bitmap);
                 source.setText(result.source.label);
+                cacheNote.setText(cacheExplanation(result.source));
                 size.setText(UiKit.readableBytes(result.sizeBytes));
                 path.setText(result.cacheFile.getAbsolutePath());
             }
@@ -249,8 +253,21 @@ public class DetailActivity extends Activity {
                     return;
                 }
                 source.setText("加载失败");
+                cacheNote.setText("请检查模拟器网络或代理后重试");
                 Toast.makeText(DetailActivity.this, "图片加载失败：" + throwable.getMessage(), Toast.LENGTH_SHORT).show();
             }
         });
+    }
+
+    private String cacheExplanation(CacheSource source) {
+        switch (source) {
+            case NETWORK:
+                return "首次获取该图，已写入本地缓存";
+            case DISK:
+                return "应用重启后复用本地缓存，未重复下载";
+            case MEMORY:
+            default:
+                return "列表刚加载过该图，详情页直接复用内存";
+        }
     }
 }
