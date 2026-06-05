@@ -5,6 +5,7 @@ import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.os.Handler;
 import android.os.Looper;
+import android.util.Log;
 import android.util.LruCache;
 
 import java.io.File;
@@ -16,12 +17,16 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
+import okhttp3.Cache;
+import okhttp3.Interceptor;
 import okhttp3.OkHttpClient;
-import okhttp3.Request;
-import okhttp3.Response;
 import okhttp3.ResponseBody;
+import retrofit2.Retrofit;
 
 final class ImageRepository {
+    private static final String TAG = "ExperienceNetwork";
+    private static final long HTTP_CACHE_SIZE = 20L * 1024L * 1024L;
+
     interface Callback {
         void onSuccess(ImageLoadResult result);
 
@@ -46,6 +51,7 @@ final class ImageRepository {
     private final ExecutorService executor = Executors.newFixedThreadPool(4);
     private final LruCache<String, Bitmap> memoryCache;
     private final OkHttpClient client;
+    private final ImageDownloadService downloadService;
 
     private ImageRepository(Context context) {
         imageDir = new File(context.getCacheDir(), "experience-images");
@@ -62,11 +68,24 @@ final class ImageRepository {
             }
         };
 
+        File httpCacheDir = new File(context.getCacheDir(), "okhttp-http-cache");
+        Cache httpCache = new Cache(httpCacheDir, HTTP_CACHE_SIZE);
+
         client = new OkHttpClient.Builder()
+                .cache(httpCache)
+                .addInterceptor(commonHeadersInterceptor())
+                .addInterceptor(loggingInterceptor())
+                .addNetworkInterceptor(responseCacheInterceptor())
                 .connectTimeout(10, TimeUnit.SECONDS)
                 .readTimeout(25, TimeUnit.SECONDS)
                 .followRedirects(true)
                 .build();
+
+        Retrofit retrofit = new Retrofit.Builder()
+                .baseUrl("https://picsum.photos/")
+                .client(client)
+                .build();
+        downloadService = retrofit.create(ImageDownloadService.class);
     }
 
     void load(ImagePost post, Callback callback) {
@@ -91,7 +110,7 @@ final class ImageRepository {
                     memoryCache.put(key, bitmap);
                     result = new ImageLoadResult(bitmap, cacheFile, cacheFile.length(), CacheSource.DISK);
                 } else {
-                    result = downloadToCache(post.imageUrl, key, cacheFile);
+                    result = downloadToCache(post.imageUrl, key, cacheFile, false);
                 }
                 postSuccess(callback, result);
             } catch (Throwable throwable) {
@@ -114,13 +133,30 @@ final class ImageRepository {
         }
     }
 
-    private ImageLoadResult downloadToCache(String imageUrl, String key, File cacheFile) throws IOException {
-        Request request = new Request.Builder()
-                .url(imageUrl)
-                .header("User-Agent", "ExperienceFeed/1.0")
-                .build();
+    void reload(ImagePost post, Callback callback) {
+        removeCache(post);
+        String key = cacheKey(post.imageUrl);
+        File cacheFile = new File(imageDir, key + ".jpg");
+        executor.execute(() -> {
+            try {
+                postSuccess(callback, downloadToCache(post.imageUrl, key, cacheFile, true));
+            } catch (Throwable throwable) {
+                postError(callback, throwable);
+            }
+        });
+    }
 
-        try (Response response = client.newCall(request).execute()) {
+    private ImageLoadResult downloadToCache(
+            String imageUrl,
+            String key,
+            File cacheFile,
+            boolean forceNetwork
+    ) throws IOException {
+        String cacheControl = forceNetwork ? "no-cache" : null;
+        retrofit2.Response<ResponseBody> response = downloadService
+                .download(imageUrl, cacheControl)
+                .execute();
+        try {
             if (!response.isSuccessful()) {
                 throw new IOException("HTTP " + response.code());
             }
@@ -132,8 +168,45 @@ final class ImageRepository {
             writeAtomically(cacheFile, bytes);
             Bitmap bitmap = decodeFile(cacheFile);
             memoryCache.put(key, bitmap);
-            return new ImageLoadResult(bitmap, cacheFile, cacheFile.length(), CacheSource.NETWORK);
+            boolean fromHttpCache = response.raw().cacheResponse() != null;
+            CacheSource source = fromHttpCache ? CacheSource.HTTP_CACHE : CacheSource.NETWORK;
+            return new ImageLoadResult(bitmap, cacheFile, cacheFile.length(), source);
+        } finally {
+            ResponseBody body = response.body();
+            if (body != null) {
+                body.close();
+            }
         }
+    }
+
+    private Interceptor commonHeadersInterceptor() {
+        return chain -> chain.proceed(
+                chain.request()
+                        .newBuilder()
+                        .header("User-Agent", "ExperienceFeed/1.0")
+                        .header("Accept", "image/*")
+                        .build()
+        );
+    }
+
+    private Interceptor loggingInterceptor() {
+        return chain -> {
+            long startNanos = System.nanoTime();
+            Log.d(TAG, "--> " + chain.request().method() + " " + chain.request().url());
+            okhttp3.Response response = chain.proceed(chain.request());
+            long durationMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startNanos);
+            String source = response.cacheResponse() != null ? "HTTP_CACHE" : "NETWORK";
+            Log.d(TAG, "<-- " + response.code() + " " + durationMs + "ms "
+                    + source + " " + response.request().url());
+            return response;
+        };
+    }
+
+    private Interceptor responseCacheInterceptor() {
+        return chain -> chain.proceed(chain.request())
+                .newBuilder()
+                .header("Cache-Control", "public, max-age=86400")
+                .build();
     }
 
     private Bitmap decodeFile(File cacheFile) throws IOException {

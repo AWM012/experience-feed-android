@@ -22,7 +22,7 @@
 
 可以口播：
 
-> 首页不是写死图片资源，而是通过 OkHttp 请求网络图片。请求成功后会把图片写入应用缓存目录，同时更新图片大小和加载来源。
+> 首页不是写死图片资源，而是通过 Retrofit 声明下载接口，由 OkHttp 真正执行网络请求。请求成功后会把图片写入应用缓存目录，同时更新图片大小和加载来源。
 
 ## 1:00 - 1:35 详情页演示
 
@@ -57,7 +57,8 @@
 
 - `MainActivity.java`：双列列表和卡片点击。
 - `DetailActivity.java`：大图详情和图片信息。
-- `ImageRepository.java`：OkHttp 请求、线程池、内存缓存、磁盘缓存。
+- `ImageDownloadService.java`：Retrofit 图片下载接口。
+- `ImageRepository.java`：OkHttp 客户端、拦截器、线程池和多级缓存。
 - `FeedData.java`：图片数据源。
 
 可以口播：

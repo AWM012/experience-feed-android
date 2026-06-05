@@ -121,12 +121,32 @@ public class DetailActivity extends Activity {
         reloadParams.setMargins(0, UiKit.dp(this, 14), 0, 0);
         panel.addView(reload, reloadParams);
 
+        TextView testHttpCache = UiKit.text(this, "测试 OkHttp 响应缓存", 14, UiKit.TEXT_SECONDARY, Typeface.BOLD);
+        testHttpCache.setGravity(Gravity.CENTER);
+        testHttpCache.setBackground(UiKit.roundedStroke(0x00FFFFFF, 8, UiKit.TEXT_TERTIARY, 1, this));
+        UiKit.pad(testHttpCache, 10, 10, 10, 10);
+        LinearLayout.LayoutParams testHttpCacheParams = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+        );
+        testHttpCacheParams.setMargins(0, UiKit.dp(this, 10), 0, 0);
+        panel.addView(testHttpCache, testHttpCacheParams);
+
         reload.setOnClickListener(view -> {
-            repository.removeCache(post);
             imageView.setImageDrawable(null);
             imageView.setBackgroundColor(UiKit.PLACEHOLDER);
             source.setText("重新获取中");
-            cacheNote.setText("已清除当前图片缓存，重新请求网络");
+            cacheNote.setText("绕过缓存，强制重新请求网络");
+            size.setText("待加载");
+            reload(post, imageView, source, cacheNote, size, path);
+        });
+
+        testHttpCache.setOnClickListener(view -> {
+            repository.removeCache(post);
+            imageView.setImageDrawable(null);
+            imageView.setBackgroundColor(UiKit.PLACEHOLDER);
+            source.setText("测试响应缓存中");
+            cacheNote.setText("已清除图片文件缓存，保留 OkHttp HTTP 缓存");
             size.setText("待加载");
             load(post, imageView, source, cacheNote, size, path);
         });
@@ -263,11 +283,46 @@ public class DetailActivity extends Activity {
         switch (source) {
             case NETWORK:
                 return "首次获取该图，已写入本地缓存";
+            case HTTP_CACHE:
+                return "Retrofit 请求由 OkHttp 响应缓存直接返回";
             case DISK:
                 return "应用重启后复用本地缓存，未重复下载";
             case MEMORY:
             default:
                 return "列表刚加载过该图，详情页直接复用内存";
         }
+    }
+
+    private void reload(
+            ImagePost post,
+            ImageView imageView,
+            TextView source,
+            TextView cacheNote,
+            TextView size,
+            TextView path
+    ) {
+        repository.reload(post, new ImageRepository.Callback() {
+            @Override
+            public void onSuccess(ImageLoadResult result) {
+                if (destroyed) {
+                    return;
+                }
+                imageView.setImageBitmap(result.bitmap);
+                source.setText(result.source.label);
+                cacheNote.setText("已强制绕过缓存并重新下载");
+                size.setText(UiKit.readableBytes(result.sizeBytes));
+                path.setText(result.cacheFile.getAbsolutePath());
+            }
+
+            @Override
+            public void onError(Throwable throwable) {
+                if (destroyed) {
+                    return;
+                }
+                source.setText("重新下载失败");
+                cacheNote.setText("请检查模拟器网络或代理后重试");
+                Toast.makeText(DetailActivity.this, "重新下载失败：" + throwable.getMessage(), Toast.LENGTH_SHORT).show();
+            }
+        });
     }
 }

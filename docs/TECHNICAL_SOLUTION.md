@@ -21,7 +21,8 @@
 app/src/main/java/com/bytecamp/experiencefeed/
 ├── MainActivity.java        # 双列图片流首页
 ├── DetailActivity.java      # 图文详情页
-├── ImageRepository.java     # OkHttp 请求、图片解码、内存缓存、磁盘缓存
+├── ImageRepository.java     # Retrofit/OkHttp 配置、图片解码和多级缓存
+├── ImageDownloadService.java # Retrofit 图片下载接口
 ├── FeedData.java            # 示例图文数据
 ├── ImagePost.java           # 图文数据模型
 ├── ImageLoadResult.java     # 图片加载结果
@@ -33,6 +34,7 @@ app/src/main/java/com/bytecamp/experiencefeed/
 
 ```gradle
 implementation "com.squareup.okhttp3:okhttp:4.12.0"
+implementation "com.squareup.retrofit2:retrofit:2.11.0"
 ```
 
 ## 3. 页面结构设计
@@ -84,7 +86,7 @@ Activity 调用 load(post)
         ↓ 未命中
 检查磁盘缓存 cacheDir/experience-images
         ↓ 未命中
-OkHttp 请求网络图片
+Retrofit 声明下载请求，OkHttp 执行网络传输
         ↓
 写入本地缓存文件
         ↓
@@ -101,10 +103,19 @@ BitmapFactory 解码
 
 ## 5. 缓存方案
 
-缓存分为两级：
+缓存分为三层：
 
 - 内存缓存：`LruCache<String, Bitmap>`，用于当前进程内快速复用。
-- 磁盘缓存：应用私有缓存目录 `cacheDir/experience-images`，用于应用重启后的复用。
+- 图片文件缓存：应用私有缓存目录 `cacheDir/experience-images`，用于应用重启后的复用。
+- OkHttp 响应缓存：`cacheDir/okhttp-http-cache`，缓存 HTTP 原始响应，容量为 20 MB。
+
+网络层使用 Retrofit 的 `@GET + @Url` 声明图片下载接口。Retrofit 负责把 Java 接口调用转换为 HTTP 请求，真正的网络连接、响应缓存和请求执行仍由 OkHttp 完成。
+
+OkHttp 配置了三个拦截器：
+
+- 请求头拦截器：统一添加 `User-Agent` 和 `Accept: image/*`。
+- 日志拦截器：记录请求方法、URL、状态码和耗时。
+- 响应缓存拦截器：为网络响应添加一天的 HTTP 缓存策略。
 
 缓存 key 使用图片 URL 的 SHA-256 值：
 
@@ -130,8 +141,9 @@ xxx.jpg.tmp -> xxx.jpg
 
 本项目的 UI 目标不是做复杂动效，而是让作业功能表达清楚：
 
-- 首页显示「网络下载 / 磁盘缓存 / 内存缓存」标签，方便录屏时演示缓存命中。
+- 首页和详情页显示「首次网络下载 / OkHttp 响应缓存 / 本地磁盘缓存 / 当前内存缓存」，方便录屏时演示不同层级的缓存命中。
 - 详情页展示缓存文件路径，说明图片确实已经落到本地。
+- 详情页提供「测试 OkHttp 响应缓存」按钮，清除图片文件缓存但保留 HTTP 缓存，用于演示 OkHttp 缓存命中。
 - 顶部栏和底部内容处理状态栏、导航栏安全区域，避免在新版本 Android 模拟器上出现贴边和遮挡。
 - 卡片使用圆角白底，列表背景使用浅色，让图片内容成为视觉重点。
 
@@ -156,7 +168,7 @@ xxx.jpg.tmp -> xxx.jpg
 
 本项目刻意选择「少依赖、逻辑透明」的实现方式：
 
-- 不使用 Glide 或 Coil，是为了展示自己对 OkHttp 请求、图片解码和缓存复用的理解。
+- 不使用 Glide 或 Coil，是为了展示自己对 Retrofit、OkHttp、图片解码和缓存复用的理解。
 - 不使用 RecyclerView，是为了让双列分配算法更直观，适合作业讲解。
 - 使用原生 Activity 和 Java，是为了贴近课程基础要求，降低额外框架干扰。
 
