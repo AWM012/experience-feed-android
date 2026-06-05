@@ -1,13 +1,16 @@
 package com.bytecamp.experiencefeed;
 
 import android.app.Activity;
+import android.app.AlertDialog;
 import android.content.Intent;
 import android.graphics.Typeface;
 import android.os.Bundle;
 import android.os.Build;
+import android.text.InputType;
 import android.util.TypedValue;
 import android.view.Gravity;
 import android.view.View;
+import android.widget.EditText;
 import android.widget.HorizontalScrollView;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
@@ -17,15 +20,30 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import java.util.List;
+import java.util.Locale;
 
 public class MainActivity extends Activity {
+    private static final String WEATHER_PREFERENCES = "weather_preferences";
+    private static final String WEATHER_CITY_KEY = "weather_city";
+    private static final String DEFAULT_WEATHER_CITY = "上海";
+
     private ImageRepository repository;
+    private WeatherRepository weatherRepository;
+    private TextView weatherCity;
+    private TextView weatherTemperature;
+    private TextView weatherCondition;
+    private TextView weatherMeta;
+    private TextView weatherChange;
+    private String selectedWeatherCity = DEFAULT_WEATHER_CITY;
     private boolean destroyed;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         repository = ImageRepository.get(this);
+        weatherRepository = WeatherRepository.get(this);
+        selectedWeatherCity = getSharedPreferences(WEATHER_PREFERENCES, MODE_PRIVATE)
+                .getString(WEATHER_CITY_KEY, DEFAULT_WEATHER_CITY);
 
         ScrollView scrollView = new ScrollView(this);
         scrollView.setFillViewport(true);
@@ -42,8 +60,10 @@ public class MainActivity extends Activity {
 
         root.addView(createTopTabs());
         root.addView(createTitleBlock());
+        root.addView(createWeatherCard());
         root.addView(createFeedColumns());
         setContentView(scrollView);
+        loadWeather(selectedWeatherCity);
     }
 
     @Override
@@ -123,6 +143,191 @@ public class MainActivity extends Activity {
         block.addView(subtitle, subtitleParams);
 
         return block;
+    }
+
+    private View createWeatherCard() {
+        LinearLayout card = new LinearLayout(this);
+        card.setOrientation(LinearLayout.VERTICAL);
+        card.setBackground(UiKit.rounded(UiKit.CARD_BG, 8, this));
+        UiKit.pad(card, 14, 12, 14, 12);
+
+        LinearLayout.LayoutParams cardParams = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+        );
+        cardParams.setMargins(
+                UiKit.dp(this, 12),
+                0,
+                UiKit.dp(this, 12),
+                UiKit.dp(this, 14)
+        );
+        card.setLayoutParams(cardParams);
+
+        LinearLayout header = new LinearLayout(this);
+        header.setOrientation(LinearLayout.HORIZONTAL);
+        header.setGravity(Gravity.CENTER_VERTICAL);
+
+        TextView label = UiKit.text(this, "实时天气", 13, UiKit.TEXT_SECONDARY, Typeface.BOLD);
+        header.addView(label, new LinearLayout.LayoutParams(
+                0,
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                1f
+        ));
+
+        weatherChange = UiKit.text(this, "修改地点", 12, UiKit.ACCENT, Typeface.BOLD);
+        weatherChange.setGravity(Gravity.CENTER);
+        weatherChange.setBackground(UiKit.roundedStroke(
+                0x00FFFFFF,
+                8,
+                UiKit.ACCENT,
+                1,
+                this
+        ));
+        UiKit.pad(weatherChange, 10, 5, 10, 5);
+        weatherChange.setOnClickListener(view -> showCityDialog());
+        header.addView(weatherChange);
+        card.addView(header);
+
+        LinearLayout current = new LinearLayout(this);
+        current.setOrientation(LinearLayout.HORIZONTAL);
+        current.setGravity(Gravity.CENTER_VERTICAL);
+        LinearLayout.LayoutParams currentParams = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+        );
+        currentParams.setMargins(0, UiKit.dp(this, 6), 0, 0);
+
+        weatherTemperature = UiKit.text(this, "--°", 38, UiKit.TEXT_PRIMARY, Typeface.BOLD);
+        weatherTemperature.setIncludeFontPadding(false);
+        current.addView(weatherTemperature);
+
+        LinearLayout detail = new LinearLayout(this);
+        detail.setOrientation(LinearLayout.VERTICAL);
+        LinearLayout.LayoutParams detailParams = new LinearLayout.LayoutParams(
+                0,
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                1f
+        );
+        detailParams.setMargins(UiKit.dp(this, 14), 0, 0, 0);
+
+        weatherCity = UiKit.text(this, selectedWeatherCity, 17, UiKit.TEXT_PRIMARY, Typeface.BOLD);
+        weatherCity.setMaxLines(1);
+        detail.addView(weatherCity);
+
+        weatherCondition = UiKit.text(this, "正在获取实时天气", 13, UiKit.TEXT_SECONDARY, Typeface.NORMAL);
+        weatherCondition.setMaxLines(1);
+        detail.addView(weatherCondition);
+
+        current.addView(detail, detailParams);
+        card.addView(current, currentParams);
+
+        weatherMeta = UiKit.text(this, "正在查询城市并更新天气", 11, UiKit.TEXT_TERTIARY, Typeface.NORMAL);
+        weatherMeta.setMaxLines(2);
+        LinearLayout.LayoutParams metaParams = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+        );
+        metaParams.setMargins(0, UiKit.dp(this, 8), 0, 0);
+        card.addView(weatherMeta, metaParams);
+
+        return card;
+    }
+
+    private void loadWeather(String city) {
+        String requestedCity = city == null ? DEFAULT_WEATHER_CITY : city.trim();
+        weatherCity.setText(requestedCity);
+        weatherTemperature.setText("--°");
+        weatherCondition.setText("正在获取实时天气");
+        weatherMeta.setText("正在查询城市并更新天气");
+        weatherChange.setEnabled(false);
+        weatherChange.setAlpha(0.55f);
+
+        weatherRepository.load(requestedCity, new WeatherRepository.Callback() {
+            @Override
+            public void onSuccess(WeatherRepository.WeatherResult result) {
+                if (destroyed) {
+                    return;
+                }
+                selectedWeatherCity = result.city;
+                getSharedPreferences(WEATHER_PREFERENCES, MODE_PRIVATE)
+                        .edit()
+                        .putString(WEATHER_CITY_KEY, result.city)
+                        .apply();
+
+                weatherCity.setText(result.city);
+                weatherTemperature.setText(String.format(Locale.CHINA, "%.0f°", result.temperature));
+                weatherCondition.setText(result.condition + " · 体感 "
+                        + String.format(Locale.CHINA, "%.0f°", result.apparentTemperature));
+                String areaPrefix = result.area.isEmpty() ? "" : result.area + " · ";
+                weatherMeta.setText(areaPrefix + "湿度 " + result.humidity + "% · 风速 "
+                        + String.format(Locale.CHINA, "%.1f km/h", result.windSpeed)
+                        + " · " + result.updateTime);
+                finishWeatherLoading();
+            }
+
+            @Override
+            public void onError(Throwable throwable) {
+                if (destroyed) {
+                    return;
+                }
+                weatherCondition.setText("天气加载失败");
+                weatherMeta.setText(readableWeatherError(throwable));
+                finishWeatherLoading();
+                Toast.makeText(
+                        MainActivity.this,
+                        "天气加载失败，可点击“修改地点”重试",
+                        Toast.LENGTH_SHORT
+                ).show();
+            }
+        });
+    }
+
+    private void finishWeatherLoading() {
+        weatherChange.setEnabled(true);
+        weatherChange.setAlpha(1f);
+    }
+
+    private String readableWeatherError(Throwable throwable) {
+        String message = throwable.getMessage();
+        if (message == null || message.trim().isEmpty()) {
+            return "暂时无法获取天气，请稍后重试";
+        }
+        return message;
+    }
+
+    private void showCityDialog() {
+        LinearLayout content = new LinearLayout(this);
+        content.setOrientation(LinearLayout.VERTICAL);
+        UiKit.pad(content, 24, 0, 24, 0);
+
+        EditText input = new EditText(this);
+        input.setSingleLine(true);
+        input.setInputType(InputType.TYPE_CLASS_TEXT);
+        input.setHint("例如：上海、北京、杭州");
+        input.setText(selectedWeatherCity);
+        input.setSelectAllOnFocus(true);
+        content.addView(input, new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+        ));
+
+        AlertDialog dialog = new AlertDialog.Builder(this)
+                .setTitle("修改天气地点")
+                .setView(content)
+                .setNegativeButton("取消", null)
+                .setPositiveButton("查询", null)
+                .create();
+        dialog.setOnShowListener(ignored -> dialog.getButton(AlertDialog.BUTTON_POSITIVE)
+                .setOnClickListener(view -> {
+                    String city = input.getText().toString().trim();
+                    if (city.isEmpty()) {
+                        input.setError("请输入城市名称");
+                        return;
+                    }
+                    dialog.dismiss();
+                    loadWeather(city);
+                }));
+        dialog.show();
     }
 
     private View createFeedColumns() {

@@ -2,11 +2,13 @@
 
 参考抖音首页上方「经验」入口实现的 Android 课后作业：一个双列图片流列表和图文详情页。
 
-项目使用 Retrofit 声明图片下载接口，底层通过 OkHttp 请求网络图片，并实现 OkHttp HTTP 响应缓存、Bitmap 内存缓存和图片文件缓存。图片已经下载过时，二次进入会优先读取缓存，避免重复请求网络。
+项目使用 Retrofit 声明图片下载和实时天气接口，底层通过 OkHttp 执行网络请求。图片部分实现了 OkHttp HTTP 响应缓存、Bitmap 内存缓存和图片文件缓存；天气部分使用 Gson 自动解析 JSON，并支持修改和保存天气地点。
 
 ## 功能清单
 
 - 双列图片流：首页以瀑布流形式展示 12 条图文内容。
+- 实时天气：首页展示当前天气，默认地点为上海，并支持修改和保存地点。
+- 城市搜索：先根据城市名称查询经纬度，再使用经纬度获取实时温度、天气、湿度和风速。
 - 网络加载：使用 Retrofit + OkHttp 请求 HTTPS 网络图片。
 - 请求拦截器：统一添加请求头，并记录请求地址、状态码和耗时。
 - 多级缓存：支持 OkHttp 响应缓存、Bitmap 内存缓存和本地图片文件缓存。
@@ -26,6 +28,8 @@
 │       ├── DetailActivity.java        # 图文详情页
 │       ├── ImageRepository.java       # Retrofit/OkHttp 配置、拦截器和多级缓存
 │       ├── ImageDownloadService.java  # Retrofit 图片下载接口
+│       ├── WeatherRepository.java     # 城市搜索、天气查询和天气数据转换
+│       ├── WeatherService.java        # Retrofit 天气 JSON 接口
 │       ├── FeedData.java              # 示例图片数据
 │       ├── ImagePost.java             # 图文数据模型
 │       ├── ImageLoadResult.java       # 图片加载结果
@@ -36,6 +40,7 @@
 │   ├── TECHNICAL_SOLUTION.md          # 技术方案文档
 │   ├── DESIGN_PRESENTATION.md         # 点评环节方案设计与思考过程
 │   ├── NETWORK_LAYER_GUIDE.md         # Retrofit、拦截器和 HTTP 缓存说明
+│   ├── WEATHER_FEATURE_GUIDE.md        # 实时天气功能与请求流程说明
 │   ├── LEARNING_SUMMARY.md            # 网络请求问题与优化总结
 │   ├── DEMO_SCRIPT.md                 # 3 分钟演示录屏脚本
 │   └── GITHUB_SUBMISSION.md           # GitHub 提交流程
@@ -54,17 +59,18 @@
 ```gradle
 implementation "com.squareup.okhttp3:okhttp:4.12.0"
 implementation "com.squareup.retrofit2:retrofit:2.11.0"
+implementation "com.squareup.retrofit2:converter-gson:2.11.0"
 ```
 
 ## 演示建议
 
 录屏时建议按下面顺序展示：
 
-1. 打开 App，展示首页双列图片流。
-2. 滚动列表，说明图片卡片包含标题、描述、日期、大小、位置和加载来源。
-3. 点击任意卡片进入详情页。
-4. 展示大图、图片大小、缓存路径和加载来源。
-5. 返回首页。
+1. 打开 App，展示上海实时天气和首页双列图片流。
+2. 点击「修改地点」，输入其他城市并展示实时天气刷新。
+3. 滚动列表，说明图片卡片包含标题、描述、日期、大小、位置和加载来源。
+4. 点击任意卡片进入详情页。
+5. 展示大图、图片大小、缓存路径和加载来源。
 6. 重新进入 App 或详情页，展示缓存命中。
 
 演示脚本见 [docs/DEMO_SCRIPT.md](docs/DEMO_SCRIPT.md)。
@@ -74,5 +80,6 @@ implementation "com.squareup.retrofit2:retrofit:2.11.0"
 - 技术方案：[docs/TECHNICAL_SOLUTION.md](docs/TECHNICAL_SOLUTION.md)
 - 方案设计与思考过程：[docs/DESIGN_PRESENTATION.md](docs/DESIGN_PRESENTATION.md)
 - 网络层说明：[docs/NETWORK_LAYER_GUIDE.md](docs/NETWORK_LAYER_GUIDE.md)
+- 实时天气说明：[docs/WEATHER_FEATURE_GUIDE.md](docs/WEATHER_FEATURE_GUIDE.md)
 - 学习总结：[docs/LEARNING_SUMMARY.md](docs/LEARNING_SUMMARY.md)
 - 提交检查清单：[docs/SUBMISSION_CHECKLIST.md](docs/SUBMISSION_CHECKLIST.md)

@@ -11,6 +11,7 @@
 - 点击列表图片进入图文详情页，展示大图。
 - 展示图片描述信息，包括标题、日期、拍摄位置、图片大小、缓存路径和加载来源。
 - 已经下载过的图片在下次进入时优先使用缓存，避免重复请求网络。
+- 在经验页展示实时天气，默认地点为上海，并支持用户修改和保存地点。
 - 提供技术方案文档、演示录屏脚本和 GitHub 提交说明，方便作业点评。
 
 ## 2. 工程概览
@@ -23,6 +24,8 @@ app/src/main/java/com/bytecamp/experiencefeed/
 ├── DetailActivity.java      # 图文详情页
 ├── ImageRepository.java     # Retrofit/OkHttp 配置、图片解码和多级缓存
 ├── ImageDownloadService.java # Retrofit 图片下载接口
+├── WeatherRepository.java   # 城市搜索、天气查询和结果转换
+├── WeatherService.java      # Retrofit 天气 JSON 接口
 ├── FeedData.java            # 示例图文数据
 ├── ImagePost.java           # 图文数据模型
 ├── ImageLoadResult.java     # 图片加载结果
@@ -35,16 +38,18 @@ app/src/main/java/com/bytecamp/experiencefeed/
 ```gradle
 implementation "com.squareup.okhttp3:okhttp:4.12.0"
 implementation "com.squareup.retrofit2:retrofit:2.11.0"
+implementation "com.squareup.retrofit2:converter-gson:2.11.0"
 ```
 
 ## 3. 页面结构设计
 
 ### 首页
 
-首页由 `MainActivity` 负责，整体分为三块：
+首页由 `MainActivity` 负责，整体分为四块：
 
 - 顶部横向 Tab：模拟抖音首页顶部频道，突出「经验」入口。
 - 标题区域：说明当前内容流主题和数量。
+- 实时天气卡片：默认展示上海天气，支持输入城市名称修改地点。
 - 双列图片流：以左右两列瀑布流形式展示 12 条图文内容。
 
 双列布局没有直接使用第三方图片列表组件，而是使用 `ScrollView + LinearLayout` 动态构建：
@@ -54,6 +59,7 @@ ScrollView
 └── LinearLayout vertical
     ├── HorizontalScrollView tabs
     ├── title block
+    ├── weather card
     └── LinearLayout horizontal
         ├── left column
         ├── gap
@@ -61,6 +67,24 @@ ScrollView
 ```
 
 图片卡片会根据预估高度分配到当前较短的一列，让左右两列高度更接近，形成轻量瀑布流效果。
+
+### 实时天气
+
+天气功能使用 Open-Meteo 的城市搜索接口和天气接口，不需要 API Key。因为天气接口需要经纬度，不能只传城市名称，所以请求分为两步：
+
+```text
+用户输入城市名称
+        ↓
+城市搜索 API 返回经纬度
+        ↓
+实时天气 API 返回 JSON
+        ↓
+Gson 转换为 Java 对象
+        ↓
+首页更新温度、天气、湿度、风速和更新时间
+```
+
+`WeatherService` 使用 Retrofit 注解声明请求参数，`WeatherRepository` 负责串联两次异步请求、转换天气代码和处理错误。用户选中的城市通过 `SharedPreferences` 保存，下次启动时继续使用；首次启动默认查询上海。
 
 ### 详情页
 
@@ -151,6 +175,8 @@ xxx.jpg.tmp -> xxx.jpg
 
 当前已处理的异常场景：
 
+- 天气城市名称为空或找不到时显示明确错误。
+- 城市搜索或天气接口请求失败时保留修改地点入口，允许用户重试。
 - HTTP 状态码非 2xx 时进入失败回调。
 - 响应体为空时进入失败回调。
 - 图片文件解码失败时进入失败回调。
@@ -178,6 +204,7 @@ xxx.jpg.tmp -> xxx.jpg
 - 使用 ViewModel 保存页面状态，降低旋转屏幕或重建 Activity 带来的影响。
 - 使用成熟图片库接管采样解码、缓存清理、请求取消和生命周期绑定。
 - 增加分页加载和下拉刷新，让图片流更接近真实内容产品。
+- 为天气功能增加定位权限和常用城市列表。
 
 ## 9. 验证方式
 
@@ -190,6 +217,7 @@ xxx.jpg.tmp -> xxx.jpg
 建议录屏前重点验证：
 
 - 首页能展示双列图片流。
+- 首页能展示上海实时天气，修改地点后天气可以刷新并保存。
 - 首次进入显示网络下载。
 - 再次进入或进入详情页时可以命中内存缓存/磁盘缓存。
 - 点击卡片进入详情页。
