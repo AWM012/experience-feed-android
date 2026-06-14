@@ -37,6 +37,6 @@
 - SharedPreferences：保存用户最后选择的城市。
 - Open-Meteo：提供城市搜索和实时天气数据，不需要 API Key。
 
-## 点评时的一句话说明
+## 核心思路
 
-> 天气接口需要经纬度，但用户输入的是城市名，所以我使用 Retrofit 串联了城市搜索和实时天气两次请求，再用 Gson 把 JSON 转成 Java 对象，并使用 SharedPreferences 保存用户修改后的地点。
+天气接口需要经纬度，但用户输入的是城市名，因此这里使用 Retrofit 串联城市搜索和实时天气两次请求，再用 Gson 把 JSON 转成 Java 对象，并使用 SharedPreferences 保存用户修改后的地点。

@@ -8,3 +8,11 @@ captures/
 *.apk
 *.aab
 *.DS_Store
+
+# Local presentation and submission notes
+docs/ASSIGNMENT_REQUIREMENTS.md
+docs/DEMO_SCRIPT.md
+docs/DESIGN_PRESENTATION.md
+docs/GITHUB_SUBMISSION.md
+docs/SUBMISSION_CHECKLIST.md
+demo/
