@@ -62,24 +62,10 @@ implementation "com.squareup.retrofit2:retrofit:2.11.0"
 implementation "com.squareup.retrofit2:converter-gson:2.11.0"
 ```
 
-## 演示建议
-
-录屏时建议按下面顺序展示：
-
-1. 打开 App，展示上海实时天气和首页双列图片流。
-2. 点击「修改地点」，输入其他城市并展示实时天气刷新。
-3. 滚动列表，说明图片卡片包含标题、描述、日期、大小、位置和加载来源。
-4. 点击任意卡片进入详情页。
-5. 展示大图、图片大小、缓存路径和加载来源。
-6. 重新进入 App 或详情页，展示缓存命中。
-
-演示脚本见 [docs/DEMO_SCRIPT.md](docs/DEMO_SCRIPT.md)。
-
-## 作业文档
+## 文档
 
 - 技术方案：[docs/TECHNICAL_SOLUTION.md](docs/TECHNICAL_SOLUTION.md)
 - 方案设计与思考过程：[docs/DESIGN_PRESENTATION.md](docs/DESIGN_PRESENTATION.md)
 - 网络层说明：[docs/NETWORK_LAYER_GUIDE.md](docs/NETWORK_LAYER_GUIDE.md)
 - 实时天气说明：[docs/WEATHER_FEATURE_GUIDE.md](docs/WEATHER_FEATURE_GUIDE.md)
 - 学习总结：[docs/LEARNING_SUMMARY.md](docs/LEARNING_SUMMARY.md)
-- 提交检查清单：[docs/SUBMISSION_CHECKLIST.md](docs/SUBMISSION_CHECKLIST.md)
